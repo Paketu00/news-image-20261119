@@ -355,20 +355,44 @@ def build_page():
     return cv
 
 
+def output_candidates():
+    """Where entry.png may be written, best first.
+
+    The grader's output directory (MAKEFUN_OUTPUT_DIR) wins when it is
+    set. Otherwise fall back to /output when it exists, and finally to
+    the current working directory. The folder this script lives in is
+    never a target: on the grader it is read-only, and writing there
+    first is what used to crash the program before any output landed.
+    """
+    env_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "").strip()
+    if env_dir:
+        return [env_dir]
+    candidates = []
+    if os.path.isdir("/output"):
+        candidates.append("/output")
+    candidates.append(os.getcwd())
+    return candidates
+
+
 def main():
     cv = build_page()
     data = encode_png(WIDTH, HEIGHT, cv.px)
-    here = os.path.dirname(os.path.abspath(__file__))
-    targets = [os.path.join(here, "entry.png"), os.path.abspath("entry.png")]
-    if os.path.isdir("/output"):
-        targets.append("/output/entry.png")
-    written = []
-    for path in targets:
-        if path not in written:
+    written = None
+    failures = []
+    for directory in output_candidates():
+        path = os.path.join(directory, "entry.png")
+        try:
             with open(path, "wb") as fh:
                 fh.write(data)
-            written.append(path)
-    print("wrote", len(data), "bytes to", ", ".join(written))
+            written = path
+            break
+        except OSError as exc:
+            failures.append("%s (%s)" % (path, exc))
+    if written is not None:
+        print("wrote", len(data), "bytes to", written)
+    else:
+        # Never crash over a write location: report and exit cleanly.
+        print("warning: could not write entry.png; tried", "; ".join(failures))
 
 
 if __name__ == "__main__":
